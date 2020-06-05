@@ -6,12 +6,12 @@
 #include <platform/android/aw_jnistring.h>
 #include <type/aw_vector.h>
 
-static Type::CVector<GoogleSignIn::IClientListener*> sListeners;
+static Type::CVector<Facebook::IClientListener*> sListeners;
 
 JNIEXPORT void JNICALL Java_com_angelsware_facebook_Client_onSignInSuccess(JNIEnv* env, jclass clazz, jstring displayName, jstring email, jstring fbId, jstring accessToken) {
 	Platform::CJniNativeString displayNameStr(displayName);
 	Platform::CJniNativeString emailStr(email);
-	Platform::CJniNativeString fbIdStr(idToken);
+	Platform::CJniNativeString fbIdStr(fbId);
 	Platform::CJniNativeString accessTokenStr(accessToken);
 	for (unsigned int i = 0; i < sListeners.getSize(); ++i) {
 		sListeners[i]->onFacebookSignInSuccess(displayNameStr.getText(), emailStr.getText(), fbIdStr.getText(), accessTokenStr.getText());
@@ -25,10 +25,9 @@ JNIEXPORT void JNICALL Java_com_angelsware_facebook_Client_onSignInFailed(JNIEnv
 }
 
 namespace Facebook {
-	CClient_Android::CClient_Android(const char* clientId, ESignInOptions signInOptions) {
+	CClient_Android::CClient_Android(ESignInOptions signInOptions) {
 		mClient = new Platform::CJniClass("com/angelsware/facebook/Client", "()V");
-		Platform::CJniString jniClientId(clientId);
-		mClient->callVoidMethod("create", "(Ljava/lang/String;J)V", jniClientId.getText(), static_cast<jlong>(signInOptions));
+		mClient->callVoidMethod("create", "(J)V", static_cast<jlong>(signInOptions));
 	}
 
 	CClient_Android::~CClient_Android() {

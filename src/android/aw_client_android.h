@@ -24,7 +24,7 @@ namespace Facebook {
 		: public IClient
 	{
 	public:
-		CClient_Android(const char* clientId, ESignInOptions signInOptions);
+		explicit CClient_Android(ESignInOptions signInOptions);
 		~CClient_Android();
 
 	private:

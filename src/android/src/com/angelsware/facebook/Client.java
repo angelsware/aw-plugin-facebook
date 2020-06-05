@@ -1,37 +1,74 @@
 package com.angelsware.facebook;
 
 import android.content.Intent;
-
-import androidx.annotation.NonNull;
+import android.os.Bundle;
 
 import com.angelsware.engine.ActivityResultListener;
 import com.angelsware.engine.AppActivity;
-import com.google.android.gms.auth.api.signin.GoogleSignIn;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-import com.google.android.gms.auth.api.signin.GoogleSignInClient;
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.common.api.ApiException;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
+import com.facebook.AccessToken;
+import com.facebook.CallbackManager;
+import com.facebook.FacebookCallback;
+import com.facebook.FacebookException;
+import com.facebook.GraphRequest;
+import com.facebook.GraphResponse;
+import com.facebook.login.LoginManager;
+import com.facebook.login.LoginResult;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.Arrays;
 
 public class Client implements ActivityResultListener {
-	private GoogleSignInClient mGoogleSignInClient;
-	private final int RC_SIGN_IN = 9001;
+	private CallbackManager mCallbackManager;
 
-	private static native void onSignInSuccess(String displayName, String email, String idToken);
+	private static native void onSignInSuccess(String displayName, String email, String fbId, String accessToken);
 	private static native void onSignInFailed();
 
-	public void create(String clientId, long signInOptions) {
+	public void create(long signInOptions) {
 		AppActivity appActivity = (AppActivity)AppActivity.getActivity();
 		appActivity.addActivityResultListener(this);
 
-		// TODO: Handle signInOptions.
-		GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-				.requestIdToken(clientId)
-				.requestEmail()
-				.build();
+		mCallbackManager = CallbackManager.Factory.create();
 
-		mGoogleSignInClient = GoogleSignIn.getClient(AppActivity.getActivity(), gso);
+		LoginManager.getInstance().registerCallback(mCallbackManager,
+				new FacebookCallback<LoginResult>() {
+					@Override
+					public void onSuccess(LoginResult loginResult) {
+						final AccessToken accessToken = loginResult.getAccessToken();
+
+						GraphRequest request = GraphRequest.newMeRequest(loginResult.getAccessToken(), new GraphRequest.GraphJSONObjectCallback() {
+							@Override
+							public void onCompleted(JSONObject object, GraphResponse response) {
+								if (response.getError() != null) {
+									response.getError().getException().printStackTrace();
+								}
+								try {
+									String email = response.getJSONObject().getString("email");
+									String id = response.getJSONObject().getString("id");
+									String name = response.getJSONObject().getString("name");
+									onSignInSuccess(name, email, id, accessToken.getToken());
+								} catch (JSONException e) {
+									e.printStackTrace();
+								}
+							}
+						});
+						Bundle parameters = new Bundle();
+						parameters.putString("fields", "id,name,email,picture");
+						request.setParameters(parameters);
+						request.executeAsync();
+					}
+
+					@Override
+					public void onCancel() {
+						onSignInFailed();
+					}
+
+					@Override
+					public void onError(FacebookException exception) {
+						onSignInFailed();
+					}
+				});
 	}
 
 	public void destroy() {
@@ -40,52 +77,20 @@ public class Client implements ActivityResultListener {
 	}
 
 	public void trySilentSignIn() {
-		mGoogleSignInClient.silentSignIn().addOnCompleteListener(new OnCompleteListener<GoogleSignInAccount>() {
-			@Override
-			public void onComplete(@NonNull Task<GoogleSignInAccount> task) {
-				handleSignIn(task);
-			}
-		});
 	}
 
 	public void signIn() {
-		Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-		AppActivity.getActivity().startActivityForResult(signInIntent, RC_SIGN_IN);
+		LoginManager.getInstance().logInWithReadPermissions(AppActivity.getActivity(),
+				Arrays.asList("public_profile", "email")
+		);
 	}
 
 	public void logOut() {
-		mGoogleSignInClient.signOut();
+		LoginManager.getInstance().logOut();
 	}
 
 	@Override
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
-		if (requestCode == RC_SIGN_IN) {
-			handleSignIn(GoogleSignIn.getSignedInAccountFromIntent(data));
-		}
-	}
-
-	private void handleSignIn(final Task<GoogleSignInAccount> task) {
-		AppActivity.getActivity().runOnUiThread(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					GoogleSignInAccount account = task.getResult(ApiException.class);
-					if (account != null) {
-						String displayName;
-						if (account.getDisplayName() != null) {
-							displayName = account.getDisplayName();
-						} else {
-							displayName = "";
-						}
-						onSignInSuccess(displayName, account.getEmail(), account.getIdToken());
-					} else {
-						onSignInFailed();
-					}
-				} catch (ApiException e) {
-					e.printStackTrace();
-					onSignInFailed();
-				}
-			}
-		});
+		mCallbackManager.onActivityResult(requestCode, resultCode, data);
 	}
 }

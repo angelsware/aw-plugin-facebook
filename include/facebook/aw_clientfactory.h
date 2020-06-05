@@ -8,7 +8,7 @@ namespace Facebook {
 
 	class CClientFactory {
 	public:
-		static IClient* create(const char* clientId, ESignInOptions signInOptions);
+		static IClient* create(ESignInOptions signInOptions);
 		static void destroy(IClient *client);
 	};
 }
